@@ -1,0 +1,202 @@
+---
+main_topsize: 0.25 # percent of the poster taken up by header bar
+main_bottomsize: 0.05 # percent of the poster taken up by bottom bar
+poster_height: "48in" # Height in inches of the poster.
+poster_width: "36in" # Width in inches of the poster.
+primary_colour: "#008080" # look for hex color pickers online to find other color codes
+title: '**Pollution, Policy, and Health: Exploring Infant Mortality Trends in South and Southeast Asia**'
+author:
+  - name: '**Ishaan Singh Sarna**'
+    affil: 1
+    main: true
+    email: isarna@umass.edu
+affiliation:
+  - num: 1
+    address: University of Massachusetts Amherst
+main_findings:
+  - "PM2.5 Exposure and Per Capita Health Expenditure have a significant relationship with Infant Mortality Rates in South and Southeast Asia"
+reference_textsize: "30px"
+output: 
+  posterdown::posterdown_betterport:
+    self_contained: false
+    pandoc_args: --mathjax
+    number_sections: false
+---
+
+```{r, include=FALSE}
+# setting the default visibility of code chunks to FALSE, and suppressing warnings and the like
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      tidy = FALSE,
+                      message = FALSE,
+                      fig.align = 'center',
+                      out.width = "100%")
+options(knitr.table.format = "html") 
+# load any required packages here
+library(LSTbook)
+library(ggformula)
+library(dagitty)
+library(tidyverse)
+library(knitr)
+library(fixest)
+library(broom)
+library(kableExtra)
+
+# Reading in the dataset
+snse.df <- read.csv("snsemod.csv") 
+
+# Cleaning data 
+snse.df <- snse.df[, -c(2,4)]
+snse.df <- snse.df[-c(337:341), ]
+colnames(snse.df)[1] <- "country"
+colnames(snse.df)[2] <- "year"
+colnames(snse.df)[3] <- "fuel_access"
+colnames(snse.df)[4] <- "health_exp_pct"
+colnames(snse.df)[5] <- "infant_mortality"
+colnames(snse.df)[6] <- "infant_mortality_f"
+colnames(snse.df)[7] <- "infant_mortality_m"
+colnames(snse.df)[8] <- "health_exp_pcap"
+colnames(snse.df)[9] <- "pm2.5"
+
+# Filtering dataset by region
+south_asia <- c("Afghanistan", "Pakistan", "Bangladesh", "India", "Nepal", "Bhutan", "Sri Lanka")
+southeast_asia <- c("Myanmar", "Philippines", "Thailand", "Vietnam", "Singapore", "Malaysia", "Laos", "Indonesia", "Cambodia")
+sa.df <- snse.df |> filter(country %in% south_asia)
+sea.df <- snse.df |> filter(country %in% southeast_asia)
+
+# Conversion of per-capita health expenditure variable into a numeric variable
+snse.df$health_exp_pcap <- as.numeric(snse.df$health_exp_pcap)
+sa.df$health_exp_pcap <- as.numeric(sa.df$health_exp_pcap)
+sea.df$health_exp_pcap <- as.numeric(sea.df$health_exp_pcap)
+```
+
+# Introduction
+
+Air pollution has emerged as a significant environmental threat to global health in recent years. According to a 2018 WHO report, nine out of ten people breathe polluted air worldwide and it is linked to 7 million deaths annually. Among the various kinds of air pollutants, fine particulate matter (PM2.5) -- particulate matter with a diameter less than 2.5 microns -- are reportedly the most hazardous to human health.[^1] A study published by The Global Burden of Disease (GBD) in 2015 reported that long-term exposure to PM2.5 was linked to 4.2 million deaths globally and 103 million disability-adjusted life-years.
+
+In addition to its effects on overall health, PM2.5 exposure has been linked to a rise in infant mortality rates. Studies have rated PM2.5 as the most lethal of particulate matters in association with infant mortality. Children under the age of 5 years are relatively more exposed to air pollution due to their developing respiratory systems and mouth-breathing.[^3] These effects are even more pronounced in developing countries, specifically in Asia, as 92% of the Asian and Pacific population are exposed detrimental levels of air pollution that have significant effects on their health.[^1] 
+
+South and Southeast Asia have become infamous for their pollution woes. These countries are experiencing rapid levels of industrialization, urbanization, and  population growth, and are reliant on coal and household solid fuels. This has resulted in frequent smog and haze episodes characterized by high concentrations of PM2.5 due to combustion emissions from these sources.[^2]   
+
+Public health spending has a strong influence on infant mortality rates in nations. Due to the recent nature of their growth and non-democratic governance models, South and Southeast Asian countries have not accorded the same degree of prioritization to healthcare as compared to other high-income, developed countries, even though there is empirical evidence that Asian countries with a higher per capita state spending on health had a lower IMR.[^4]
+
+
+# Model
+
+```{r}
+include_graphics ("dag-ishaan.png")
+```
+
+To identify the causal effect of PM2.5 exposure and per-capita health expenditure on infant mortality rates, I include PM2.5 exposure, per-capita health expenditure, and their interaction term in the model as explanatory variables. The interaction term allows me to assess whether health expenditure mitigates/moderates the effect of PM2.5 exposure in countries where the latter is high. To identify and compare the effects of PM2.5 exposure and health expenditure for South and Southeast Asia, I use a similar regression for each region.
+
+
+$$inf.mortality = \beta_0 + \beta_1 (pm2.5) + \beta_2 (pcap.health.exp) + \beta_3 (pm2.5*pcap.health.exp) + \epsilon_i$$
+
+# Data
+
+For the purpose of this research, I used data from the World Development Indicators (WDI) website, which is the World Bank's primary collection of development indicators, compiled from recognized international sources. I extracted data about 16 countries in total -- 7 from South Asia (Afghanistan, Bangladesh, Bhutan, India, Nepal, Pakistan, Sri Lanka) and 9 from Southeast Asia (Cambodia, Indonesia, Lao PDR, Malaysia, Myanmar, the Philippines, Singapore, Thailand, Viet Nam) -- between the years 2000 and 2020. The data contains information about the following variables: country, year, infant_mortality(infant mortality rate per 1000 live births), pm2.5 (mean annual exposure to pm2.5), health_exp_pcap (per capita government health expenditure), health_exp_pct (government health expenditure as a % of total government expenditure), fuel_access (access to clean fuel for cooking). For the purposes of this study, I only used the first five variables.  
+
+
+
+# Results
+
+```{r, fig.cap='Infant Mortality vs PM2.5 and Health Expenditure in S. and SE Asia', fig.width = 12, fig.height = 10, out.width="80%", echo = FALSE}
+ggplot(snse.df, aes(x = pm2.5, y = infant_mortality)) +
+  geom_point(aes(color = health_exp_pcap), size = 3, alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Infant Mortality vs PM2.5 and Health Expenditure",
+       x = "PM2.5 Exposure",
+       y = "Infant Mortality Rate",
+       color = "Per Capita Health Exp.") +
+  theme_minimal() +
+    theme(
+    plot.title = element_text(size = 30),          
+    axis.title.x = element_text(size = 30),        
+    axis.title.y = element_text(size = 30),        
+    axis.text.x = element_text(size = 30),         
+    axis.text.y = element_text(size = 20),         
+    legend.title = element_text(size = 20),        
+    legend.text = element_text(size = 15)          
+  )
+
+```
+
+The above plot maps the relationship between PM2.5 exposure and Infant Mortality Rate for countries with different levels of health expenditure. We can see that countries with higher levels of health expenditure (red) tend to cluster at lower infant mortality rates, while regions with low per capita health expenditure seem to have higher IMR even at low to moderate PM2.5 exposure levels. This suggests that reducing PM2.5 exposure is critical for lowering infant mortality rates. Additionally, increased per capita health expenditure can help mitigate the adverse effects of air pollution.  
+
+```{r fig.cap='Interaction Estimates of PM2.5 Exposure and Health Expenditure on Infant Mortality Rate in South Asia', echo = FALSE}
+sa.model.2 <- lm(infant_mortality~pm2.5 *health_exp_pcap, data = sa.df)
+sa.model.2.summary <- broom::tidy(sa.model.2)
+kable(sa.model.2.summary, caption = "Regression Results for Infant Mortality in South Asia", digits = 4, format = "html", align = "c") %>% kableExtra::kable_styling(full_width = FALSE, position = "center")
+```
+
+The estimate of the interaction term pm2.5*health_exp_pcap is -0.0054, which suggests that the effect of PM2.5 exposure on infant mortality decreases slightly when per capita health expenditure increases. This implies that health expenditure may mitigate the relationship between PM2.5 exposure and infant mortality, albeit weakly. This interaction effect also lacks statistical significance (p-value = 0.3826), suggesting that there is insufficient evidence for this conclusion. The R-squared of this regression model was 0.4701, implying moderate explanatory power.
+
+```{r echo = FALSE}
+sea.model.2 <- lm(infant_mortality~pm2.5 *health_exp_pcap, data = sea.df)
+sea.model.2.summary <- broom::tidy(sea.model.2) |>
+  mutate(p.value = format.pval(p.value, digits = 4, eps = 1e-4))
+kable(sea.model.2.summary, caption = "Regression Results for Infant Mortality in Southeast Asia", digits = 4, format = "html", align = "c") %>% kableExtra::kable_styling(full_width = FALSE, position = "center")
+
+```
+
+This regression output table suggests that the interaction term is highly significant. For every 1-unit increase in per capita health expenditure, the positive effect of PM2.5 exposure on infant mortality reduces by 0.0112 per 1000 live births. This means that health expenditure has a strong moderating effect on infant mortality in the presence of PM2.5 exposure in Southeast Asia, i.e. healthcare plays a protective role in regions with high pollution. The overall model fit is better for Southeast Asia than for Southeast Asia, with an R-squared of 0.637. 
+
+```{r echo = FALSE, fig.width = 12, fig.height = 10}
+mean_s_asia <- mean(sa.df$health_exp_pcap, na.rm = TRUE)
+mean_se_asia <- mean(sea.df$health_exp_pcap, na.rm = TRUE)
+
+means.data <- data.frame(
+  Region = c("South Asia", "Southeast Asia"), 
+  Mean_Health_Exp <- c(mean_s_asia, mean_se_asia)
+)
+  
+ggplot(means.data, aes(x = Region, y = Mean_Health_Exp, fill = Region)) +
+    geom_bar(stat = "identity", width = 0.6, alpha = 0.8) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "Mean Per Capita Health Expenditure by Region",
+    x = "Region",
+    y = "Mean Health Expenditure (% of GDP)"
+  ) +
+  theme_minimal() +
+    theme(
+    plot.title = element_text(size = 30),   
+    axis.title.x = element_text(size = 30),  
+    axis.title.y = element_text(size = 30), 
+    axis.text.x = element_text(size = 20)
+  )
+
+```
+
+
+```{r, fig.cap='Comparison of Per Capita Health Expenditure in S and SE Asia', echo = FALSE}
+t_test_results <- t.test(sa.df$health_exp_pcap, sea.df$health_exp_pcap, na.rm = TRUE)
+t_test_results <- data.frame(
+  Statistic = c("t-statistic", "Degrees of Freedom", "p-value", "95% Confidence Interval", "Mean of South Asia", "Mean of Southeast Asia"),
+  Value = c(-5.3055, 147.66, "4.034e-07", "[-183.68, -83.98]", 18.83803, 152.66700)
+)
+
+kable(t_test_results, caption = "Welch Two Sample t-test Results", digits = 4, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
+The bar chart reveals that per capita health expenditure in South Asia is significantly lower than in Southeast Asia. The difference between the estimates of per capita health expenditures is also statistically significant, as shown by the results of the Welch Two Sample t-test. The p-value of the t-test is less than 0.05, allowing us to reject the null hypothesis and conclude that there is a significant difference in the healthcare expenditures of the two regions. Moreover, the negative confidence interval and negative t-statistic further solidifies that per capita healthcare expenditure in Southeast Asia is significantly higher compared to South Asia. 
+
+# Discussion
+
+The objective of my analysis was to investigate the relationship between PM2.5 exposure, healthcare expenditure, and infant mortality rates (IMR) in South and Southeast Asia. More specifically, we aimed to investigate whether healthcare expenditure could moderate the effect of high exposure of PM2.5 on IMR. Ultimately, the results of my analysis provide partial support for the theoretical framework that both PM2.5 exposure and healthcare expenditure influence infant mortality, but with some region-specific dynamics between these variables. 
+
+The significant relationship between the interaction of PM2.5 exposure and per capita health expenditure, and IMR in Southeast Asia suggests that higher levels of health expenditure are associated with a weaker effect of PM2.5 exposure on IMR. This implies that regions with more robust healthcare infrastructure and greater financial resources may be able to provide better-quality healthcare that mitigates the effect of high pollution levels. In contrast, the lack of significance for the interaction term in South Asia suggests a more unclear relationship in this region. The significantly lower health expenditure in South Asia, instead of mitigating, exacerbates the effect of PM2.5 exposure on IMR. Moreover, this could also be due to other unobserved factors such as quality of life, per capita income, poverty rates, etc. Therefore, the effects of healthcare expenditure may be outweighed by structural challenges in South Asia. 
+
+A major limitation of this study is that it fails to capture the individual variation between countries in these regions. For instance, the per capita health expenditure in certain South Asian countries, such as Sri Lanka and Bhutan, is much higher as compared to neighboring countries, such as Bangladesh and Nepal. Additionally, Bangladesh and India are more densely populated than Sri Lanka and Bhutan, which could affect the allocation and effectiveness of health expenditure levels. This study also fails to account for potential confounders such as access to clean technologies, quality of healthcare, or implementation of air pollution control policies, which may significantly affect IMR. This study, however, opens up avenues for future research that focuses on other factors that affect the relationship between pollution and infant mortality rate.
+
+
+# References
+
+<div id="refs" class="references">
+- [^1]: Anwar, A.; Ullah, I.; Younis, M.; Flahault, A. Impact of Air Pollution (PM2.5) on Child Mortality: Evidence from Sixteen Asian Countries. Int. J. Environ. Res. Public Health 2021, 18, 6375. https:// doi.org/10.3390/ijerph18126375
+- [^2]: Yusheng Shi, Aimei Zhao, Tsuneo Matsunaga, Yasushi Yamaguchi, Shuying Zang, Zhengqiang Li, Tao Yu, Xingfa Gu. Underlying causes of PM2.5-induced premature mortality and potential health benefits of air pollution control in South and Southeast Asia from 1999 to 2014, Environment International, Volume 121, Part 1, 2018, Pages 814-823, https://doi.org/10.1016/j.envint.2018.10.019.
+- [^3]: Gouveia N, Junger WL; ESCALA investigators. Effects of air pollution on infant and children respiratory mortality in four large Latin-American cities. Environ Pollut. 2018 Jan;232:385-391. doi: 10.1016/j.envpol.2017.08.125. Epub 2017 Sep 29. PMID: 28966023.
+-[^4]: Shetty, Anil, and Shraddha Shetty. “The correlation of health spending and infant mortality rate in Asian countries.” International Journal of Contemporary Pediatrics, vol. 1, no. 2, 2014, p. 100-105, https://doi.org/10.5455/2349-3291.ijcp20140808. 
+</div>

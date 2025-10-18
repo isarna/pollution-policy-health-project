@@ -1,0 +1,217 @@
+---
+title: "Final Project"
+author: "Ishaan Singh Sarna"
+date: "2024-12-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(fixest)
+library(haven)
+library(LSTbook)
+library(dplyr)
+library(scales)
+library(ggdag)
+library(tidyr)
+```
+
+```{r}
+snse.df <- read.csv("snsemod.csv") 
+```
+
+```{r}
+snse.df <- snse.df[, -c(2,4)]
+snse.df <- snse.df[-c(337:341), ]
+```
+
+```{r}
+colnames(snse.df)[1] <- "country"
+colnames(snse.df)[2] <- "year"
+colnames(snse.df)[3] <- "fuel_access"
+colnames(snse.df)[4] <- "health_exp_pct"
+colnames(snse.df)[5] <- "infant_mortality"
+colnames(snse.df)[6] <- "infant_mortality_f"
+colnames(snse.df)[7] <- "infant_mortality_m"
+colnames(snse.df)[8] <- "health_exp_pcap"
+colnames(snse.df)[9] <- "pm2.5"
+```
+
+```{r}
+snse.df |> point_plot(infant_mortality~pm2.5, annot = "model")
+```
+
+```{r}
+snse.df$health_exp_pct <- as.numeric(snse.df$health_exp_pct)
+```
+
+```{r}
+snse.df |> point_plot(infant_mortality~pm2.5 + health_exp_pct, annot = "model")
+```
+
+```{r}
+# Create vectors for South Asia and Southeast Asia countries
+south_asia <- c("Afghanistan", "Pakistan", "Bangladesh", "India", "Nepal", "Bhutan", "Sri Lanka")
+southeast_asia <- c("Myanmar", "Philippines", "Thailand", "Vietnam", "Singapore", "Malaysia", "Laos", "Indonesia", "Cambodia")
+
+# Filter the dataset by regions
+south_asia_data <- snse.df |> filter(country %in% south_asia)
+southeast_asia_data <- snse.df |> filter(country %in% southeast_asia)
+```
+
+**South Asia Stats:**
+
+IMR as a function of PM 2.5 exposure in S. Asia
+
+```{r}
+ggplot(south_asia_data, aes(x = pm2.5, y = infant_mortality)) +
+  geom_point(color = "orange") +
+  geom_smooth(method = "lm", se = FALSE, color = "darkblue") +
+  labs(title = "PM 2.5 Mean Annual Exposure vs Infant Mortality Rate (S Asia)",
+       x = "PM2.5 Mean Annual Exposure (µg/m^3)",
+       y = "Infant Mortality Rate (per 1000 live births)") +
+  theme_minimal()
+```
+
+
+
+```{r}
+model <- lm(south_asia_data$infant_mortality~south_asia_data$pm2.5)
+summary(model)
+```
+
+```{r}
+south_asia_data |>
+  model_train(infant_mortality~pm2.5) |>
+  conf_interval()
+```
+
+
+```{r}
+south_asia_data |>
+  feols(infant_mortality~pm2.5 | country) |>
+  conf_interval()
+```
+
+## Regression equation: (infant mortality)i = 4.79 + 0.77(PM2.5)
+
+IMR as a function of PM 2.5 Exposure and Per Capita Health Exp:
+
+```{r}
+ggplot(south_asia_data, aes(x = pm2.5, y = infant_mortality)) +
+  geom_point(aes(color = health_exp_pct), size = 3, alpha = 0.7) +
+  geom_smooth(method="lm", se = FALSE, color="black")
+  labs(title = "Infant Mortality vs PM2.5 and Health Expenditure",
+       x = "PM2.5 Exposure",
+       y = "Infant Mortality Rate",
+       color = "Health Exp. (% of Govt Expenditure)") +
+  theme_minimal()
+```
+
+```{r}
+sasia.model.2 <- lm(south_asia_data$infant_mortality~south_asia_data$pm2.5+south_asia_data$health_exp_pct)
+summary(sasia.model.2)
+```
+
+```{r}
+sasia.model.int <- lm(south_asia_data$infant_mortality~south_asia_data$pm2.5*south_asia_data$health_exp_pct)
+summary(sasia.model.int)
+```
+
+```{r}
+south_asia_data$health_exp_pcap <- as.numeric(south_asia_data$health_exp_pcap)
+```
+
+```{r}
+sasia.model.int2 <- lm(south_asia_data$infant_mortality~south_asia_data$pm2.5*south_asia_data$fuel_access)
+summary(sasia.model.int2)
+```
+
+
+**Stats for Southeast Asia:**
+
+```{r}
+ggplot(southeast_asia_data, aes(x = pm2.5, y = infant_mortality)) +
+  geom_point(color = "red") +
+  geom_smooth(method = "lm", se = FALSE, color = "darkred") +
+  labs(title = "Relationship between PM2.5 and Infant Mortality (Southeast Asia)",
+       x = "PM2.5 Levels",
+       y = "Infant Mortality") +
+  theme_minimal()
+
+```
+
+```{r}
+se.model <- lm(southeast_asia_data$infant_mortality~southeast_asia_data$pm2.5)
+summary(se.model)
+```
+
+## Regression equation: (infant mortality)i = -10.73 + 1.34(PM2.5)
+
+```{r}
+southeast_asia_data$health_exp_pct <- as.numeric(southeast_asia_data$health_exp_pct)
+```
+
+```{r}
+ggplot(southeast_asia_data, aes(x = pm2.5, y = infant_mortality)) +
+  geom_point(aes(color = health_exp_pct), size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "black")
+  labs(title = "Infant Mortality vs PM2.5 and Health Expenditure",
+       x = "PM2.5 Exposure",
+       y = "Infant Mortality Rate",
+       color = "Health Exp. (% of Govt Expenditure)") +
+  theme_minimal()
+```
+
+```{r}
+se.model.2 <- lm(southeast_asia_data$infant_mortality~southeast_asia_data$pm2.5 + southeast_asia_data$health_exp_pct)
+summary(se.model.2)
+```
+
+```{r}
+mean_south_asia <- mean(south_asia_data$health_exp_pct, na.rm = TRUE)
+mean_southeast_asia <- mean(southeast_asia_data$health_exp_pct, na.rm = TRUE)
+
+# Combine mean values into a data frame
+means_data <- data.frame(
+  Region = c("South Asia", "Southeast Asia"),
+  Mean_Health_Exp = c(mean_south_asia, mean_southeast_asia)
+)
+
+# Create a bar chart
+ggplot(means_data, aes(x = Region, y = Mean_Health_Exp, fill = Region)) +
+  geom_bar(stat = "identity", width = 0.6, alpha = 0.8) +
+  labs(
+    title = "Mean Health Expenditure by Region",
+    x = "Region",
+    y = "Mean Health Expenditure (% of GDP)"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+summary_data <- data.frame(
+  Region = c("South Asia", "Southeast Asia"),
+  Health_Exp_Pct = c(mean(south_asia_data$health_exp_pct, na.rm = TRUE), 
+                     mean(southeast_asia_data$health_exp_pct, na.rm = TRUE)),
+  PM2_5 = c(mean(south_asia_data$pm2.5, na.rm = TRUE), 
+            mean(southeast_asia_data$pm2.5, na.rm = TRUE)),
+  Infant_Mortality = c(mean(south_asia_data$infant_mortality, na.rm = TRUE), 
+                       mean(southeast_asia_data$infant_mortality, na.rm = TRUE))
+)
+
+# Reshape data to long format for ggplot
+summary_data_long <- summary_data %>%
+  pivot_longer(cols = -Region, names_to = "Metric", values_to = "Value")
+
+ggplot(summary_data_long, aes(x = Region, y = Value, fill = Metric)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+  labs(
+    title = "Comparison of Health Expenditure, PM2.5, and Infant Mortality by Region",
+    x = "Region",
+    y = "Value",
+    fill = "Metric"
+  ) +
+  theme_minimal()
+```
